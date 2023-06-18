@@ -4,25 +4,30 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
+	"strconv"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
-type originData struct {
-	state string
-	title string
-	category string
-	price string
-	date string
+type QuasarzoneData struct {
+	State string
+	Title string
+	Category string
+	Price string
+	Date string
 }
 
-type QuasarzoneParser struct {
-	originData
+func noSpaces(str string) (string){
+	reg := regexp.MustCompile(`\s+`)
+	return reg.ReplaceAllString(str, "")
 }
 
-func Test(){
-	fmt.Println("Test function start")
-	res, err := http.Get("https://quasarzone.com/bbs/qb_saleinfo?page=1")
+func Parsing(page int) ([]QuasarzoneData){
+	// fmt.Println("Test function start")
+	url := fmt.Sprintf("https://quasarzone.com/bbs/qb_saleinfo?page=%s", strconv.Itoa(page))
+
+	res, err := http.Get(url)
 	if err != nil {
 		panic(err)
 	}	
@@ -41,15 +46,18 @@ func Test(){
     log.Fatal(err)
   }
 
-	fmt.Println("search test")
+	// fmt.Println("search test")
+	var rows []QuasarzoneData
+
 	doc.Find("div.market-info-list-cont").Each(func(idx int, s *goquery.Selection) {
 		state := s.Find("span.label").Text()
 		title := s.Find("span.ellipsis-with-reply-cnt").Text()
 		category := s.Find("span.category").Text()
 		price := s.Find("span.text-orange").Text()
-		date := s.Find("span.date").Text()
+		date := noSpaces(s.Find("span.date").Text())
 
-		fmt.Printf("%s %s %s %s %s\n", state, title, category, price, date)
+		rows = append(rows, QuasarzoneData{State: state, Title: title, Category: category, Price: price, Date: date})
 	})
-	
+
+	return rows
 }

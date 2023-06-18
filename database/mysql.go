@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	cusParser "sale-noti/cus-parser"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -18,6 +19,7 @@ const productTableQuery = `
 		price VARCHAR(100),
 		date VARCHAR(100),
 		link VARCHAR(1024),
+		createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY(id)
 	);
 `
@@ -44,7 +46,9 @@ func NewDBConnect() (*DBMysqlRepository, error) {
 }
 
 func (db DBMysqlRepository) checkTable(table string) (bool) {
-	_, tableCheck := db.connection.Query("SELECT * FROM ?", table)
+	query := fmt.Sprintf("SELECT * FROM %s;", table)
+	_, tableCheck := db.connection.Query(query)
+
 	if tableCheck == nil {
 		return true
 	} else {
@@ -74,17 +78,19 @@ func (db DBMysqlRepository) DBClose() (error) {
 	return db.connection.Close()
 }
 
-func (db DBMysqlRepository) Insert() (sql.Result, error){
-	result, err := db.connection.Exec("INSERT INTO test1 VALUES (?, ?)", 11, "Jack")
+func (db DBMysqlRepository) ProductInsert(table string, site string, link string, data cusParser.QuasarzoneData) (sql.Result, error){
+	tableColumns := fmt.Sprintf("%s(site, state, title, category, price, date, link)", table)
+	result, err := db.connection.Exec("INSERT INTO " + tableColumns + "VALUES (?, ?, ?, ?, ?, ?, ?)", site, data.State, data.Title, data.Category, data.Price, data.Date, link)
+	fmt.Println(data.Date)
 	if err != nil {
+		fmt.Println(result, err)
 		return nil, err
 	}
 
 	n, err := result.RowsAffected()
-    if n == 1 {
-      fmt.Println("1 row inserted.")
-    }
+	if n == 1 {
+		fmt.Println("1 row inserted.")
+	}
 	
 	return result, err
 }
-
