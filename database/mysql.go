@@ -7,6 +7,7 @@ import (
 	"reflect"
 	cusParser "sale-noti/cus-parser"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -54,7 +55,7 @@ func scanStructFields(v interface{}) ([]interface{}) {
 	return fields
 }
 
-func NewDBConnect() (*DBMysqlRepository, error) {
+func connect() (*DBMysqlRepository, error) {
 	db := DBMysqlRepository{}
 	connection, err := sql.Open("mysql", "noti:1234@tcp(127.0.0.1:3306)/sale_noti")
 	if err != nil{
@@ -62,13 +63,34 @@ func NewDBConnect() (*DBMysqlRepository, error) {
 		return nil, err
 	}
 
-	err = connection.Ping()
+	db.connection = connection
+	return &db, nil
+}
+
+func NewDBConnect() (*DBMysqlRepository, error) {
+	db, err := connect()
+
+	err = db.connection.Ping()
 	if err != nil{
+		for retries := 0; retries < 3; retries++ {
+			db, err = connect()
+
+			if err != nil {
+				fmt.Println("재연결 시도 중 오류:", err)
+			} else {
+				err = db.connection.Ping()
+				if err == nil {
+					return db, nil
+				}
+			}
+
+			time.Sleep(time.Second * 3)
+		}
+
 		return nil, err
 	}
 	
-	db.connection = connection
-	return &db, nil;
+	return db, nil
 }
 
 func (db DBMysqlRepository) checkTable(table string) (bool) {
