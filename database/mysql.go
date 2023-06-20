@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"reflect"
 	cusParser "sale-noti/cus-parser"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -24,8 +26,32 @@ const productTableQuery = `
 	);
 `
 
+type Product struct {
+	Id int
+	Site string
+	State string
+	Title string
+	Category string
+	Price string
+	Date string
+	Link string
+	CreatedAt string
+}
+
 type DBMysqlRepository struct {
 	connection *sql.DB
+}
+
+func scanStructFields(v interface{}) ([]interface{}) {
+	value := reflect.ValueOf(v).Elem()
+	numFields := value.NumField()
+	
+	fields := make([]interface{}, numFields)
+	for i := 0; i < numFields; i++ {
+		fields[i] = value.Field(i).Addr().Interface()
+	}
+	
+	return fields
 }
 
 func NewDBConnect() (*DBMysqlRepository, error) {
@@ -56,26 +82,46 @@ func (db DBMysqlRepository) checkTable(table string) (bool) {
 	}
 }
 
-func (db DBMysqlRepository) createTable() () {
-	// "CREATE TABLE test1 (id INT, name VARCHAR(50));"
+func (db DBMysqlRepository) createTable() (sql.Result, error) {
 	result, err := db.connection.Exec(productTableQuery)
 	if err != nil {
-		fmt.Println("쿼리 실행 에러:", err)
-		return
+		return nil, err
 	}
 
-	fmt.Println(result)
+	return result, nil
 }
 
-func (db DBMysqlRepository) GenerateTable() {
+func (db DBMysqlRepository) GenerateTable() (sql.Result, error) {
 	hasTable := db.checkTable("products")
-	if hasTable == false {
-		db.createTable()
+	if hasTable == true {
+		return nil, nil
 	}
+	return db.createTable()
 }
 
 func (db DBMysqlRepository) DBClose() (error) {
 	return db.connection.Close()
+}
+
+func (db DBMysqlRepository) FindOne(table string, fields map[string]interface{}, resultType interface{}) (interface{}, error) {
+	var whereClauses []string
+	var values []interface{}
+
+	for field, value := range fields {
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = ?", field))
+		values = append(values, value)
+	}
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE %s", table, strings.Join(whereClauses, " AND "))
+	result := db.connection.QueryRow(query, values...)
+	
+	convertedResult := reflect.New(reflect.TypeOf(resultType)).Interface()
+	err := result.Scan(scanStructFields(convertedResult)...)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertedResult, nil
 }
 
 func (db DBMysqlRepository) ProductInsert(table string, site string, link string, data cusParser.QuasarzoneData) (sql.Result, error){
